@@ -30,15 +30,14 @@ def block(net, layers, growth, scope='block'):
     return net
 def transition_layer(net,in_size, scope):
     """
-    The transition layers used in our experiments consist of a batch normalization layer 
-    and an 1×1 convolutional layer 
+    The transition layers used in our experiments consist of a batch normalization layer
+    and an 1×1 convolutional layer
     followed by a 2×2 average pooling layer.
     """
     net= slim.batch_norm(net, scope=scope + '_bn')
     net= slim.conv2d(net, in_size, [1,1], scope=scope + '_conv1x1')
-    print(net.get_shape())
     net= slim.avg_pool2d(net, [2, 2], stride=2, scope=scope+'_pool_2x2')
-    
+
     return net
 
 def densenet(images, num_classes=1001, is_training=False,
@@ -73,54 +72,73 @@ def densenet(images, num_classes=1001, is_training=False,
             # pass
             #images: A batch of `Tensors` of size [batch_size, height, width, channels].
             ##########################
-            
+            # network architecture work on cifar10 dataset:
+            # (batch, 112, 112, 48)  conv7x7
+            # (batch, 56, 56, 48)    max_pool3x3
+            # (batch, 56, 56, 192)   denseblock1
+            # (batch, 56, 56, 28)    Transition conv1x1
+            # (batch, 28, 28, 28)    Transition avg_pool2x2
+            # (batch, 28, 28, 316)   denseblock2
+            # (batch, 28, 28, 14)    Transition conv1x1
+            # (batch, 14, 14, 14)    Transition avg_pool2x2
+            # (batch, 14, 14, 590)   denseblock3
+            # (batch, 14, 14, 7)     Transition conv1x1
+            # (batch, 7, 7, 7)       Transition avg_pool2x2
+            # (batch, 7, 7, 391)     denseblock4
+            # (batch, 391)           global average pool7x7
+            # (batch, 10)            classifier-layer
             # code start
-            
-            #  conv1: The initial convolution layer comprises 2k convolutions of size 7×7 with stride 2
+
+            #  The initial convolution layer comprises 2k(k:growth) convolutions of size 7×7 with stride 2
+            #  Before entering the first dense block, a convolution with 16 (or twice the growth rate for DenseNet-BC) output channels is performed on the input images
             net= slim.conv2d(images, growth*2, [7,7],stride=2, scope=scope + '_conv7x7')
             end_points[scope + '_conv7x7'] = net
-            print(net.get_shape())
-            #  pool1
+
             net= slim.max_pool2d(net, [3,3],stride=2,padding='SAME', scope=scope + '_pool3x3')
-            end_points[scope + '_pool3x3'] = net
-            print(net.get_shape())
+            end_points[scope + '_max_pool3x3'] = net
+
             # denseblock1
-            net= block(net, 6, growth, scope= 'denseblock1')
-            end_points['denseblock1'] = net
-            print(net.get_shape())
+            # : denseblock的输出H*W维度不会变化,channel会根据growth*num增长
+            # : 这里的 growth 就起到一个限制网络变宽,对参数保持一个限制,而又在深度上保持一定比例的增长
+            net= block(net, 6, growth, scope= scope + 'denseblock1')
+            end_points[scope +'denseblock1'] = net
+
             # transition layer1
-            net= transition_layer(net, reduce_dim(net), scope='Transition_Layer1')
-            end_points['Transition_Layer1'] = net
-            print(net.get_shape())
+            # reduce_dim(): To further improve model compactness, we can reduce the number of feature-maps at transition layers
+            # 经过 denseblock对网络输出维度 channel 的提升后,transition 则起到降维(对 Feature Map 数量和尺寸)作用,减少网络的计算量
+            net= transition_layer(net, reduce_dim(net), scope=scope + 'Transition_Layer1')
+            end_points[scope +'Transition_Layer1'] = net
+
             # denseblock2
-            net= block(net, 12, growth, scope= 'denseblock2')
-            end_points['denseblock2'] = net
-            print(net.get_shape())
+            net= block(net, 12, growth, scope= scope + 'denseblock2')
+            end_points[scope +'denseblock2'] = net
+
             # transition layer2
-            net= transition_layer(net, reduce_dim(net), scope='Transition_Layer2')
-            end_points['Transition_Layer2'] = net
-            print(net.get_shape())
+            net= transition_layer(net, reduce_dim(net), scope=scope + 'Transition_Layer2')
+            end_points[scope +'Transition_Layer2'] = net
+
             # denseblock3
-            net= block(net, 24, growth, scope= 'denseblock3')
-            end_points['denseblock3'] = net
-            print(net.get_shape())
+            net= block(net, 24, growth, scope=scope + 'denseblock3')
+            end_points[scope +'denseblock3'] = net
+
             # transition layer3
-            net= transition_layer(net, reduce_dim(net), scope='Transition_Layer3')
-            end_points['Transition_Layer3'] = net
-            print(net.get_shape())
+            net= transition_layer(net, reduce_dim(net), scope=scope + 'Transition_Layer3')
+            end_points[scope +'Transition_Layer3'] = net
+
             # denseblock4
-            net= block(net, 16, growth, scope= 'denseblock4')
-            end_points['denseblock4'] = net
-            print(net.get_shape())
-            
-            # Global average pool
-            net= slim.avg_pool2d(net, 1, [7,7], scope=scope + '_pool7x7')
+            net= block(net, 16, growth, scope=scope + 'denseblock4')
+            end_points[scope +'denseblock4'] = net
+
+            # Global average pool:对网络传输过来的特征图各层都做avg_pool,且pool的siez就和特征图同大小
+            # 原理和用FC全连接层类似,但这个方式带来的参数量很小,降低计算量,还相当于对特征直接进行了粗粒度分类,
+            net= slim.avg_pool2d(net, int(net.get_shape()[1]), stride=1, scope=scope + '_gap_pool7x7')
             net= slim.flatten(net)
-            print(net.get_shape())
-            logits = slim.fully_connected(net, num_classes, scope='output',activation_fn=tf.nn.softmax)
-            print(logits.get_shape())
-            end_points['logits'] = logits
-            
+            end_points[scope + '_gap_pool7x7'] = net
+
+            # softmax classifier
+            logits = slim.fully_connected(net, num_classes, scope=scope + 'output', activation_fn=tf.nn.softmax)
+            end_points[scope + 'logits'] = logits
+
             # code end
             ##########################
 
