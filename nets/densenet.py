@@ -99,7 +99,9 @@ def densenet(images, num_classes=1001, is_training=False,
 
             # denseblock1
             # : denseblock的输出H*W维度不会变化,channel会根据growth*num增长
-            # : 这里的 growth 就起到一个限制网络变宽,对参数保持一个限制,而又在深度上保持一定比例的增长
+            #   这里的 growth 就起到一个限制网络变宽,对参数保持一个限制,而又在深度上保持按比例的增长,其内部的 bottleneck 又对参数起了一个限制作用,在网络结构中处处都对参数控制
+            #   对于网络的目标而言,denseblock内密集连接的复合结构对于输入的特征学习的方式是特征复用,每一层的输入是前面各层输出的集合
+            #   而在该结构内各层连接的数量 l(l+1)//2 ,如果以l=50计算,连接数都很多了,所以有密集连接的说法
             net= block(net, 6, growth, scope= scope + 'denseblock1')
             end_points[scope +'denseblock1'] = net
 
