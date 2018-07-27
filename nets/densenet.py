@@ -29,8 +29,14 @@ def block(net, layers, growth, scope='block'):
         net = tf.concat(axis=3, values=[net, tmp])
     return net
 def transition_layer(net,in_size, scope):
+    """
+    The transition layers used in our experiments consist of a batch normalization layer 
+    and an 1×1 convolutional layer 
+    followed by a 2×2 average pooling layer.
+    """
     net= slim.batch_norm(net, scope=scope + '_bn')
     net= slim.conv2d(net, in_size, [1,1], scope=scope + '_conv1x1')
+    print(net.get_shape())
     net= slim.avg_pool2d(net, [2, 2], stride=2, scope=scope+'_pool_2x2')
     
     return net
@@ -67,49 +73,52 @@ def densenet(images, num_classes=1001, is_training=False,
             # pass
             #images: A batch of `Tensors` of size [batch_size, height, width, channels].
             ##########################
+            
             # code start
             
             #  conv1: The initial convolution layer comprises 2k convolutions of size 7×7 with stride 2
             net= slim.conv2d(images, growth*2, [7,7],stride=2, scope=scope + '_conv7x7')
             end_points[scope + '_conv7x7'] = net
+            print(net.get_shape())
             #  pool1
             net= slim.max_pool2d(net, [3,3],stride=2,padding='SAME', scope=scope + '_pool3x3')
             end_points[scope + '_pool3x3'] = net
-            
+            print(net.get_shape())
             # denseblock1
             net= block(net, 6, growth, scope= 'denseblock1')
             end_points['denseblock1'] = net
-            
+            print(net.get_shape())
             # transition layer1
             net= transition_layer(net, reduce_dim(net), scope='Transition_Layer1')
             end_points['Transition_Layer1'] = net
-            
+            print(net.get_shape())
             # denseblock2
             net= block(net, 12, growth, scope= 'denseblock2')
             end_points['denseblock2'] = net
-            
+            print(net.get_shape())
             # transition layer2
             net= transition_layer(net, reduce_dim(net), scope='Transition_Layer2')
             end_points['Transition_Layer2'] = net
-            
+            print(net.get_shape())
             # denseblock3
             net= block(net, 24, growth, scope= 'denseblock3')
             end_points['denseblock3'] = net
-            
+            print(net.get_shape())
             # transition layer3
             net= transition_layer(net, reduce_dim(net), scope='Transition_Layer3')
             end_points['Transition_Layer3'] = net
-            
+            print(net.get_shape())
             # denseblock4
             net= block(net, 16, growth, scope= 'denseblock4')
             end_points['denseblock4'] = net
-            
+            print(net.get_shape())
             
             # Global average pool
             net= slim.avg_pool2d(net, 1, [7,7], scope=scope + '_pool7x7')
             net= slim.flatten(net)
-            
+            print(net.get_shape())
             logits = slim.fully_connected(net, num_classes, scope='output',activation_fn=tf.nn.softmax)
+            print(logits.get_shape())
             end_points['logits'] = logits
             
             # code end
