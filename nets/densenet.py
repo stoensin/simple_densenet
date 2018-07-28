@@ -37,7 +37,7 @@ def transition_layer(net,in_size, scope):
     net= slim.conv2d(net, in_size, [1,1], scope=scope + '_conv1x1')
     net= slim.batch_norm(net, scope=scope + '_bn')
     net= tf.nn.relu(net)
-    net = slim.dropout(net, keep_prob=0.2,scope=scope + '_dropout')
+    net = slim.dropout(net, keep_prob=0.5,scope=scope + '_dropout')
     net= slim.avg_pool2d(net, [2, 2], stride=2, scope=scope+'_pool_2x2')
 
     return net
@@ -61,7 +61,7 @@ def densenet(images, num_classes=1001, is_training=False,
       end_points: a dictionary from components of the network to the corresponding
         activation.
     """
-    growth = 24
+    growth = 46
     compression_rate = 0.5
 
     def reduce_dim(input_feature):
@@ -137,6 +137,8 @@ def densenet(images, num_classes=1001, is_training=False,
             net= block(net, 16, growth, scope=scope + 'denseblock4')
             end_points[scope +'denseblock4'] = net
 
+            net= slim.batch_norm(net, scope=scope + '_bn')
+            net= tf.nn.relu(net)
             # Global average pool:对网络传输过来的特征图各层都做avg_pool,且pool的siez就和特征图同大小
             # 原理和用FC全连接层类似,但这个方式带来的参数量很小,降低计算量,还相当于对特征直接进行了粗粒度分类,
             net= slim.avg_pool2d(net, int(net.get_shape()[1]), stride=1, scope=scope + '_gap_pool7x7')
@@ -153,7 +155,7 @@ def densenet(images, num_classes=1001, is_training=False,
     return logits, end_points
 
 
-def bn_drp_scope(is_training=True, keep_prob=0.8):
+def bn_drp_scope(is_training=True, keep_prob=0.5):
     keep_prob = keep_prob if is_training else 1
     with slim.arg_scope(
         [slim.batch_norm],
