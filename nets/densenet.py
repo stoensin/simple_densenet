@@ -61,7 +61,7 @@ def densenet(images, num_classes=1001, is_training=False,
       end_points: a dictionary from components of the network to the corresponding
         activation.
     """
-    growth = 46
+    growth = 40
     compression_rate = 0.5
 
     def reduce_dim(input_feature):
