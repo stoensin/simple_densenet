@@ -34,14 +34,16 @@ def transition_layer(net,in_size, scope):
     and an 1×1 convolutional layer
     followed by a 2×2 average pooling layer.
     """
-    net= slim.batch_norm(net, scope=scope + '_bn')
     net= slim.conv2d(net, in_size, [1,1], scope=scope + '_conv1x1')
+    net= slim.batch_norm(net, scope=scope + '_bn')
+    net= tf.nn.relu(net)
+    net = slim.dropout(net, keep_prob=0.2,scope=scope + '_dropout')
     net= slim.avg_pool2d(net, [2, 2], stride=2, scope=scope+'_pool_2x2')
 
     return net
 
 def densenet(images, num_classes=1001, is_training=False,
-             dropout_keep_prob=0.8,
+             dropout_keep_prob=0.2,
              scope='densenet'):
     """Creates a variant of the densenet model.
 
@@ -63,7 +65,7 @@ def densenet(images, num_classes=1001, is_training=False,
     compression_rate = 0.5
 
     def reduce_dim(input_feature):
-        return int(int(input_feature.get_shape()[1]) * compression_rate)
+        return int(int(input_feature.get_shape()[-1]) * compression_rate)
 
     end_points = {}
 
@@ -76,17 +78,20 @@ def densenet(images, num_classes=1001, is_training=False,
             # (batch, 112, 112, 48)  conv7x7
             # (batch, 56, 56, 48)    max_pool3x3
             # (batch, 56, 56, 192)   denseblock1
-            # (batch, 56, 56, 28)    Transition conv1x1
-            # (batch, 28, 28, 28)    Transition avg_pool2x2
-            # (batch, 28, 28, 316)   denseblock2
-            # (batch, 28, 28, 14)    Transition conv1x1
-            # (batch, 14, 14, 14)    Transition avg_pool2x2
-            # (batch, 14, 14, 590)   denseblock3
-            # (batch, 14, 14, 7)     Transition conv1x1
-            # (batch, 7, 7, 7)       Transition avg_pool2x2
-            # (batch, 7, 7, 391)     denseblock4
-            # (batch, 391)           global average pool7x7
+            # (batch, 56, 56, 96)    transition conv1x1
+            # (batch, 28, 28, 96)    transition avg_pool2x2
+            # (batch, 28, 28, 384)   denseblock2
+            # (batch, 28, 28, 192)   transition conv1x1
+            # (batch, 14, 14, 192)   transition avg_pool2x2
+            # (batch, 14, 14, 768)   denseblock3
+            # (batch, 14, 14, 384)   transition conv1x1
+            # (batch, 7, 7, 384)     transition avg_pool2x2
+            # (batch, 7, 7, 768)     denseblock4
+            # (batch, 768)           global average pool7x7
             # (batch, 10)            classifier-layer
+
+            # 从网络结构来看,网络变得越来越窄,而这样越来越窄的效果就是 densenet 结构设计的精妙之处.
+
             # code start
 
             #  The initial convolution layer comprises 2k(k:growth) convolutions of size 7×7 with stride 2
@@ -97,17 +102,18 @@ def densenet(images, num_classes=1001, is_training=False,
             net= slim.max_pool2d(net, [3,3],stride=2,padding='SAME', scope=scope + '_pool3x3')
             end_points[scope + '_max_pool3x3'] = net
 
-            # denseblock1
-            # : denseblock的输出H*W维度不会变化,channel会根据growth*num增长
-            #   这里的 growth 就起到一个限制网络变宽,对参数保持一个限制,而又在深度上保持按比例的增长,其内部的 bottleneck 又对参数起了一个限制作用,在网络结构中处处都对参数控制
-            #   对于网络的目标而言,denseblock内密集连接的复合结构对于输入的特征学习的方式是特征复用,每一层的输入是前面各层输出的集合
-            #   而在该结构内各层连接的数量 l(l+1)//2 ,如果以l=50计算,连接数都很多了,所以有密集连接的说法
+           # denseblock1:
+           # denseblock的输出H*W维度不会变化,channel会根据growth*num增长
+           # 这里的 growth 就起到一个限制网络变宽,对参数保持一个限制,而又在深度上保持按比例的增长,其内部的bottleneck实现又对channel数量进行了降低,在网络结构中处处都对参数进行着控制,
+           # 而反应到特征学习上来说,就是 each layer 只学习少量特征,这就减少了参数量,降低了网络的对于计算的需求;
+           # 对于网络的目标而言,denseblock内的复合结构对于输入的特征学习的方式-特征复用,每一层网络的输出都会被用于后面各层网络的计算;
+           # 而在该结构内各层连接的数量有 (l(l+1))//2 个,如果以l=50计算,连接数就有1275了,所以就有密集连接的说法;
             net= block(net, 6, growth, scope= scope + 'denseblock1')
             end_points[scope +'denseblock1'] = net
 
             # transition layer1
-            # reduce_dim(): To further improve model compactness, we can reduce the number of feature-maps at transition layers
-            # 经过 denseblock对网络输出维度 channel 的提升后,transition 则起到降维(对 Feature Map 数量和尺寸)作用,减少网络的计算量
+            # : To further improve model compactness, we can reduce the number of feature-maps at transition layers
+            #   经过 denseblock对网络输出维度 channel 的提升后,transition 则起到降维(对 Feature Map 数量和尺寸)作用,减少网络的计算量
             net= transition_layer(net, reduce_dim(net), scope=scope + 'Transition_Layer1')
             end_points[scope +'Transition_Layer1'] = net
 
