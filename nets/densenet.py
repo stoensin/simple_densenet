@@ -142,11 +142,10 @@ def densenet(images, num_classes=1001, is_training=False,
             # Global average pool:对网络传输过来的特征图各层都做avg_pool,且pool的siez就和特征图同大小
             # 原理和用FC全连接层类似,但这个方式带来的参数量很小,降低计算量,还相当于对特征直接进行了粗粒度分类,
             net= slim.avg_pool2d(net, net.shape[1:3], stride=1,padding='VALID', scope=scope + '_gap_pool7x7')
-            net= slim.conv2d(net,net.shape[-1],stride=1,activation_fn=tf.nn.relu,scope=scope + 'conv1x1')
             end_points[scope + '_gap_pool7x7'] = net
 
             # softmax classifier
-            logits = slim.fully_connected(net, num_classes, scope=scope + 'output', activation_fn=tf.nn.softmax)
+            logits = slim.conv2d(net, num_classes, 1, biases_initializer=tf.zeros_initializer(), scope='logits')
             end_points[scope + 'logits'] = logits
 
             # code end
