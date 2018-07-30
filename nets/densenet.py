@@ -141,8 +141,8 @@ def densenet(images, num_classes=1001, is_training=False,
             net= tf.nn.relu(net)
             # Global average pool:对网络传输过来的特征图各层都做avg_pool,且pool的siez就和特征图同大小
             # 原理和用FC全连接层类似,但这个方式带来的参数量很小,降低计算量,还相当于对特征直接进行了粗粒度分类,
-            net= slim.avg_pool2d(net, int(net.get_shape()[1]), stride=1, scope=scope + '_gap_pool7x7')
-            net= slim.flatten(net)
+            net= slim.avg_pool2d(net, net.shape[1:3], stride=1, scope=scope + '_gap_pool7x7')
+            net= slim.conv2d(net,net.shape[-1],stride=1,padding='VALID',scope=scope + 'conv1x1')
             end_points[scope + '_gap_pool7x7'] = net
 
             # softmax classifier
