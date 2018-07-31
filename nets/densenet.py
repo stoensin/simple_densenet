@@ -108,33 +108,33 @@ def densenet(images, num_classes=1001, is_training=False,
            # 而反应到特征学习上来说,就是 each layer 只学习少量特征,这就减少了参数量,降低了网络的对于计算的需求;
            # 对于网络的目标而言,denseblock内的复合结构对于输入的特征学习的方式-特征复用,每一层网络的输出都会被用于后面各层网络的计算;
            # 而在该结构内各层连接的数量有 (l(l+1))//2 个,如果以l=50计算,连接数就有1275了,所以就有密集连接的说法;
-            net= block(net, 6, growth, scope= scope + 'denseblock1')
+            net= block(net, 6, growth, scope= scope + '_denseblock1')
             end_points[scope +'denseblock1'] = net
 
             # transition layer1
             # : To further improve model compactness, we can reduce the number of feature-maps at transition layers
             #   经过 denseblock对网络输出维度 channel 的提升后,transition 则起到降维(对 Feature Map 数量和尺寸)作用,减少网络的计算量
-            net= transition_layer(net, reduce_dim(net), scope=scope + 'Transition_Layer1')
+            net= transition_layer(net, reduce_dim(net), scope=scope + '_Transition_Layer1')
             end_points[scope +'Transition_Layer1'] = net
 
             # denseblock2
-            net= block(net, 12, growth, scope= scope + 'denseblock2')
+            net= block(net, 12, growth, scope= scope + '_denseblock2')
             end_points[scope +'denseblock2'] = net
 
             # transition layer2
-            net= transition_layer(net, reduce_dim(net), scope=scope + 'Transition_Layer2')
+            net= transition_layer(net, reduce_dim(net), scope=scope + '_Transition_Layer2')
             end_points[scope +'Transition_Layer2'] = net
 
             # denseblock3
-            net= block(net, 24, growth, scope=scope + 'denseblock3')
+            net= block(net, 24, growth, scope=scope + '_denseblock3')
             end_points[scope +'denseblock3'] = net
 
             # transition layer3
-            net= transition_layer(net, reduce_dim(net), scope=scope + 'Transition_Layer3')
+            net= transition_layer(net, reduce_dim(net), scope=scope + '_Transition_Layer3')
             end_points[scope +'Transition_Layer3'] = net
 
             # denseblock4
-            net= block(net, 16, growth, scope=scope + 'denseblock4')
+            net= block(net, 16, growth, scope=scope + '_denseblock4')
             end_points[scope +'denseblock4'] = net
 
             net= slim.batch_norm(net, scope=scope + '_bn')
@@ -142,12 +142,14 @@ def densenet(images, num_classes=1001, is_training=False,
             # Global average pool:对网络传输过来的特征图各层都做avg_pool,且pool的siez就和特征图同大小
             # 原理和用FC全连接层类似,但这个方式带来的参数量很小,降低计算量,还相当于对特征直接进行了粗粒度分类,
             net= slim.avg_pool2d(net, net.shape[1:3], stride=1,padding='VALID', scope=scope + '_gap_pool7x7')
-            net= slim.conv2d(net,num_classes,[1,1],activation_fn=tf.nn.relu,scope=scope + 'conv1x1')
-            net= slim.flatten(net)
+            # net= slim.conv2d(net,num_classes,[1,1],activation_fn=tf.nn.relu,scope=scope + '_conv1x1')
+            # net= slim.flatten(net)
             end_points[scope + '_gap_pool7x7'] = net
 
             # softmax classifier
-            logits = slim.fully_connected(net, num_classes, scope=scope + 'output', activation_fn=tf.nn.softmax)
+            # logits = slim.fully_connected(net, num_classes, scope=scope + '_output', activation_fn=tf.nn.softmax)
+            net= slim.conv2d(net, num_classes, [1, 1], activation_fn=None,normalizer_fn=None, biases_initializer = tf.constant_initializer(0.1),scope='_classifier_conv1x1')
+            logits = tf.squeeze(net,scope=scope+'_logit')
             end_points[scope + 'logits'] = logits
 
             # code end
